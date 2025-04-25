@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WTI Transformer</title>
+  <style>
+    body {
+      background-color: #1e1e2f;
+      color: #e0e0e0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 2rem;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+    textarea {
+      width: 100%;
+      min-height: 250px;
+      padding: 1rem;
+      font-size: 1rem;
+      background-color: #2c2c3c;
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      resize: vertical;
+    }
+    textarea[readonly] {
+      background-color: #3a3a4a;
+    }
+    .button-group {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+    }
+    button {
+      padding: 0.6rem 1.2rem;
+      background-color: #4c4cff;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+    button:hover {
+      background-color: #3a3ad1;
+    }
+  </style>
+</head>
+<body>
+  <h1>WTI Transformer</h1>
+  <div class="container">
+    <textarea id="inputBox" placeholder="請輸入原始資料..."></textarea>
+    <div class="button-group">
+      <button onclick="transformData()">轉換</button>
+      <button onclick="clearInput()">清空</button>
+    </div>
+    <textarea id="outputBox" readonly placeholder="轉換後的結果會顯示在這裡..."></textarea>
+  </div>
+
+  <script>
+    function transformData() {
+      const input = document.getElementById('inputBox').value;
+      const outputBox = document.getElementById('outputBox');
+
+      const orders = input.split(/訂單編號：/).slice(1);
+      let parsed = [];
+
+      orders.forEach(order => {
+        const timeMatch = order.match(/訂單創建時間：(.+?)訂單結束時間：(.+?)\n/);
+        const buyMatch = order.match(/買入價\n(.+?)賣出價\n(.+?)金額\n(.+?)手續費/);
+        const profitMatch = order.match(/盈虧\n([+-]?[\d,.]+)/);
+
+        if (!timeMatch || !buyMatch || !profitMatch) return;
+
+        const [_, startTime, endTime] = timeMatch;
+        const [__, buyStr, sellStr, amountStr] = buyMatch;
+        const profitStr = profitMatch[1];
+
+        const buy = parseFloat(buyStr.replace(/,/g, ''));
+        const sell = parseFloat(sellStr.replace(/,/g, ''));
+        const amount = parseFloat(amountStr.replace(/,/g, ''));
+        const profit = parseFloat(profitStr.replace(/,/g, ''));
+
+        const [fullDate, time] = startTime.split(' ');
+        const [year, month, day] = fullDate.split('-');
+        const date = `${month}/${day}`;
+        const hour = time.slice(0, 2);
+
+        let direction = '';
+        if (buy < sell && profit > 0) direction = '漲';
+        else if (buy < sell && profit < 0) direction = '跌';
+        else if (buy > sell && profit > 0) direction = '跌';
+        else if (buy > sell && profit < 0) direction = '漲';
+
+        const formattedAmount = 'NT$' + Math.round(amount).toLocaleString();
+        const formattedProfit = 'NT$' + Math.abs(Math.round(profit)).toLocaleString();
+        const profitDisplay = profit < 0 ? '-' + formattedProfit : formattedProfit;
+
+        parsed.push({
+          hour,
+          time,
+          line: `原油\t${date}\t60s\t${direction}\t${time}\tNT$${buy.toFixed(2)}\tNT$${sell.toFixed(2)}\t${formattedAmount}\t${profitDisplay}`
+        });
+      });
+
+      parsed.sort((a, b) => a.time.localeCompare(b.time));
+
+      let result = '';
+      let lastHour = '';
+      parsed.forEach(({ hour, line }) => {
+        if (hour !== lastHour) {
+          if (result !== '') result += '\n';
+          lastHour = hour;
+        }
+        result += line + '\n';
+      });
+
+      outputBox.value = result.trim();
+    }
+
+    function clearInput() {
+      document.getElementById('inputBox').value = '';
+    }
+  </script>
+</body>
+</html>
